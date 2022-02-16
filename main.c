@@ -188,8 +188,23 @@ __interrupt void isr_adc(void){
 
   //Teste sobrecorrente (quando o sobrecorrente vai pra 1)
    if(sobrecorrente != 0){
-             GpioDataRegs.GPADAT.bit.GPIO22 = 0;  //habilita o trip zone
-             }
+             //GpioDataRegs.GPADAT.bit.GPIO22 = 0;  //habilita o trip zone
+
+         //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
+       // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
+
+       EALLOW;
+
+       EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
+       EPwm5Regs.TZFRC.bit.OST = 1;
+       EPwm6Regs.TZFRC.bit.OST = 1;
+
+
+          EDIS;
+
+
+
+          }
 
     while(!AdcbRegs.ADCINTFLG.bit.ADCINT1);     // Wait ADCB finished  quando o ADCINT1 =1 , o pulso de interrupção ja foi gerado
 // Le os 4 valores do ADC A, 2 valores do ADC B e 2 valores do ADC C
@@ -222,6 +237,8 @@ if(GpioDataRegs.GPADAT.bit.GPIO26){
 
     C_iLa.reset(&C_iLa); //Ia
     duty_inv_a = 0;
+
+    //utilizar um evento de trip zone para isso
 
     C_iLb.reset(&C_iLb); //Ib
     duty_inv_b = 0;

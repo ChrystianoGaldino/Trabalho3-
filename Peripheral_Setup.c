@@ -234,8 +234,8 @@ void Setup_ePWM(void){
 
     //Enable TZ interrupt
     EPwm4Regs.TZEINT.bit.OST = 1;   // habilita a interrupção do trip zone
-
-
+    EPwm5Regs.TZEINT.bit.OST = 1;
+    EPwm6Regs.TZEINT.bit.OST = 1;
 
     EDIS;
 
