@@ -51,13 +51,87 @@ interrupt void isr_cpu_timer0(void);  //função de interrupção de tempo
 __interrupt void isr_adc(void);     //funçao de interrupçao do ADC
 __interrupt void isr_epwm_trip(void);  //função do trip zone
 
-
 //teste entra em função
 float teste = 0;
 
 //Sobrecorrente
 int sobrecorrente = 0;
 
+//Maquina de Estados//
+//Variaveis globais
+void (*PonteiroDeFuncao)(); //ponteiro de função da maquina de estados
+
+//prototypes:
+void Init(void);       //função que representa o estado inicial da máquina de estados.
+void On(void);   //função que representa o estado ligado.
+void Off(void);   //função que representa o estado desligado.
+void Error(void);   //função que representa o estado de erro.
+
+//Declaração das funções
+
+//Estado inicial da máquina de estados. Somente muda de estado se for digitada a letra 'a'
+void Init(void)
+{
+  //faz a verificação inicial do conversor
+
+    char TeclaLida;
+
+    TeclaLida = 'a';
+
+  if (TeclaLida == 'a')
+    PonteiroDeFuncao = On; //vai para o estado ligado
+  else
+      PonteiroDeFuncao = Off; //vai para o estado ligado
+}
+
+//Vai para proximo estado se for digitada a letra 'b'. Caso contrario, volta ao estado inicial (aguardar letra 'a')
+void On(void)
+{
+  char TeclaLida;
+  //faz a leitura da tecla pressionada
+
+
+  if (TeclaLida == 'b')
+    PonteiroDeFuncao = Off;
+  else
+  {
+    printf("\n\n- Caracter esperado: b. Caracter lido: %c. Voltando ao estado inicial\n\n",TeclaLida);
+    PonteiroDeFuncao = Init;
+  }
+}
+
+//Vai para proximo estado se for digitada a letra 'c'. Caso contrario, volta ao estado inicial (aguardar letra 'a')
+void Off(void)
+{
+  char TeclaLida;
+  //faz a leitura da tecla pressionada
+  fflush(stdin); //limpa o buffer de teclado
+  TeclaLida = getche();
+
+  if (TeclaLida == 'c')
+    PonteiroDeFuncao = On;
+  else
+  {
+    printf("\n\n- Caracter esperado: c. Caracter lido: %c. Voltando ao estado inicial\n\n",TeclaLida);
+    PonteiroDeFuncao = Init;
+  }
+}
+
+//Valida seqüência se se for digitada a letra 'd'. Caso contrario, volta ao estado inicial (aguardar letra 'a')
+void Error(void)
+{
+  char TeclaLida;
+  //faz a leitura da tecla pressionada
+  fflush(stdin); //limpa o buffer de teclado
+  TeclaLida = getche();
+
+  if (TeclaLida != 'd')
+     ///
+  else
+      PonteiroDeFuncao = Off;
+
+  PonteiroDeFuncao = Init;
+}
 
 int main(void)
     {
@@ -145,6 +219,9 @@ int main(void)
               C_iLc.OutMax = 0.98;
               C_iLc.OutMin = -0.98;
 
+//Inicializa a máquina de estados//
+PonteiroDeFuncao = Init; //aponta para o estado inicial. Nunca esquecer de informar um estado
+
 
                 //loop infinito
         while(1){
@@ -164,6 +241,9 @@ int main(void)
             //Liga ou desliga o conversor boost
             LigDesL_PWM = GpioDataRegs.GPADAT.bit.GPIO26;
            // }
+
+            //Maquina de estados//
+            (*PonteiroDeFuncao)();    //chama a função apontada pelo ponteiro de função (logo, chama o estado corrente)
 
                 }
                return 0;
