@@ -145,6 +145,19 @@ init_state readevents(void)
 
 int main(void)
     {
+
+    init_state next_state = on;
+    events new_event;
+
+    //loop infinito
+    while(1){
+   events new_event = readevents();
+
+switch(next_state){
+
+    case on:{
+
+
             //Funções básicas definidas pela Texas Instrument
 
                 InitSysCtrl();       //Initialize System Control
@@ -184,6 +197,41 @@ int main(void)
                 EINT;                 //Enable Global interrupt INTM
                 ERTM;                 //Enable Global realtime interrupt DBGM
 
+                next_state = goto_ON();
+           }
+        break;
+
+    case On:{
+        if(overcurrent == new_event){
+            next_state = goto_ERROR();
+        }
+
+        if(overtemperature == new_event){
+                  next_state = goto_ERROR();
+        }
+
+        if(off_state == new_event){
+            next_state = goto_OFF();
+        }
+    }
+    break;
+    case Off:{
+        if(on_state == new_event){
+            next_state = goto_ON();
+        }
+    }
+    break;
+
+    case Error:{
+        if(on_state == new_event){
+            next_state = end_init_goto_ON();
+        }
+    }
+    break;
+    default:
+        break;
+    }
+}
 
                 //mantem os leds desligados inicialmente
                 GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
@@ -234,10 +282,10 @@ int main(void)
 
 
                 //loop infinito
-        while(1){
-             for(count = 0; count < 0x00FFFFF; count++){
+       // while(1){
+           //  for(count = 0; count < 0x00FFFFF; count++){
 
-                 }
+             //    }
              //Faz piscar o led azul ligado na GPIO 31
              // GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
 
@@ -255,7 +303,9 @@ int main(void)
             //Maquina de estados//
 
 
-                }
+               // }
+
+
                return 0;
 
 }
