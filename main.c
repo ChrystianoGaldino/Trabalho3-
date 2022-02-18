@@ -67,71 +67,81 @@ void On(void);   //função que representa o estado ligado.
 void Off(void);   //função que representa o estado desligado.
 void Error(void);   //função que representa o estado de erro.
 
-//Declaração das funções
-
-//Estado inicial da máquina de estados. Somente muda de estado se for digitada a letra 'a'
-void Init(void)
+//Declarações da Maquina de Estados
+typedef enum
 {
-  //faz a verificação inicial do conversor
+    Init,
+    On,
+    Off,
+    Error,
+}init_state;
 
-    char TeclaLida;
+typedef enum
+{
+    overcurrent,
+    overtemperature,
+    off_state,
+    on_state,
+    none,
+}events;
 
-    TeclaLida = 'a';
-
-  if (TeclaLida == 'a')
-    PonteiroDeFuncao = On; //vai para o estado ligado
-  else
-      PonteiroDeFuncao = Off; //vai para o estado ligado
+////////////Declaração das funções///////////
+init_state ini(void)
+{
+    return Init;
 }
 
-//Vai para proximo estado se for digitada a letra 'b'. Caso contrario, volta ao estado inicial (aguardar letra 'a')
-void On(void)
+init_state goto_ON(void)
 {
-  char TeclaLida;
-  //faz a leitura da tecla pressionada
+    EINT;
+    ERTM;
+
+  //código da estado
 
 
-  if (TeclaLida == 'b')
-    PonteiroDeFuncao = Off;
-  else
-  {
-    printf("\n\n- Caracter esperado: b. Caracter lido: %c. Voltando ao estado inicial\n\n",TeclaLida);
-    PonteiroDeFuncao = Init;
-  }
+    return On;
 }
 
-//Vai para proximo estado se for digitada a letra 'c'. Caso contrario, volta ao estado inicial (aguardar letra 'a')
-void Off(void)
+init_state goto_OFF(void)
 {
-  char TeclaLida;
-  //faz a leitura da tecla pressionada
-  fflush(stdin); //limpa o buffer de teclado
-  TeclaLida = getche();
+    DINT;
 
-  if (TeclaLida == 'c')
-    PonteiroDeFuncao = On;
-  else
-  {
-    printf("\n\n- Caracter esperado: c. Caracter lido: %c. Voltando ao estado inicial\n\n",TeclaLida);
-    PonteiroDeFuncao = Init;
-  }
+  //código da estado
+
+
+
+    return Off;
 }
 
-//Valida seqüência se se for digitada a letra 'd'. Caso contrario, volta ao estado inicial (aguardar letra 'a')
-void Error(void)
+init_state goto_ERROR(void)
 {
-  char TeclaLida;
-  //faz a leitura da tecla pressionada
-  fflush(stdin); //limpa o buffer de teclado
-  TeclaLida = getche();
+    DINT;
 
-  if (TeclaLida != 'd')
-     ///
-  else
-      PonteiroDeFuncao = Off;
 
-  PonteiroDeFuncao = Init;
+
+
+    return Error;
 }
+
+init_state readevents(void)
+{
+    if(ia > Isat || ib > Isat || ic < -Isat){
+            return overcurrent;
+        }
+    if(temp ==0){    //GPIO-14 ==0   sensor de temperatura
+            return overtemperature;
+        }
+        if(turn_off_command == 1){
+            PieCtrlRegs.PIEIER1.bit.INTx7 = 0;
+            return off_state;
+        }
+        if(turn_on_command == 1){
+            PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
+            return on_state;
+        }
+        return none;
+    }
+
 
 int main(void)
     {
@@ -220,7 +230,7 @@ int main(void)
               C_iLc.OutMin = -0.98;
 
 //Inicializa a máquina de estados//
-PonteiroDeFuncao = Init; //aponta para o estado inicial. Nunca esquecer de informar um estado
+ //aponta para o estado inicial. Nunca esquecer de informar um estado
 
 
                 //loop infinito
@@ -243,7 +253,7 @@ PonteiroDeFuncao = Init; //aponta para o estado inicial. Nunca esquecer de infor
            // }
 
             //Maquina de estados//
-            (*PonteiroDeFuncao)();    //chama a função apontada pelo ponteiro de função (logo, chama o estado corrente)
+
 
                 }
                return 0;
