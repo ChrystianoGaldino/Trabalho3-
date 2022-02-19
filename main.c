@@ -59,7 +59,8 @@ int Isat = 3;
 
 //Maquina de Estados//
 
-unsigned char turn_off_command = 0, turn_on_command = 0;
+//unsigned char turn_off_command = 0, turn_on_command = 0;
+int turn_off_command = 0, turn_on_command = 0;
 
 //prototypes:
 //void Init(void);       //função que representa o estado inicial da máquina de estados.
@@ -98,6 +99,7 @@ init_state goto_liga(void)
     EINT;  //Enable Global interrupt INTM
     ERTM;  //Enable Global realtime interrupt DBGM
 
+
     return ON;
 }
 
@@ -130,11 +132,17 @@ init_state readevents(void)
         }
         if(turn_off_command == 1){
          PieCtrlRegs.PIEIER1.bit.INTx7 = 0; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
-            return desligado;
+         PieCtrlRegs.PIEIER1.bit.INTx1 = 0;  // ADC A1 (interrupção do ADC A) (linha 1 da coluna 1)
+
+         return desligado;
         }
         if(turn_on_command == 1){
-         PieCtrlRegs.PIEIER1.bit.INTx7 = 1; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
-            return ligado;
+            PieCtrlRegs.PIEIER1.bit.INTx7 = 1; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
+            PieCtrlRegs.PIEIER1.bit.INTx1 = 1;  // ADC A1 (interrupção do ADC A) (linha 1 da coluna 1)
+            PieCtrlRegs.PIEIER2.bit.INTx4 = 1;  //Enable PieVector to TZ4 TRIP1 interrupt (linha 2, coluna 4)
+
+         return ligado;
+
         }
         return nada;
     }
@@ -194,14 +202,80 @@ switch(ProximoEstado){
                 CpuTimer0Regs.TCR.all = 0x4001; //habilita a interrupção dentro do timer
 
 
-          //      EINT;                 //Enable Global interrupt INTM
-           //     ERTM;                 //Enable Global realtime interrupt DBGM
+                EINT;                 //Enable Global interrupt INTM
+                ERTM;                 //Enable Global realtime interrupt DBGM
 
                 //mantem os leds desligados inicialmente
                   GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
                   GpioDataRegs.GPADAT.bit.GPIO31 = 0;
 
+                                  //inicializa as variaveis do contador
+                                    contadores.geral = 0;
+                                    contadores.index = 0;
+                                    contadores.pre_carga = 0;
+                                    contadores.trip_event = 0;
 
+                                  //inicializa as variavies de tensão e corrente
+                                    va = 0;
+                                    vb = 0;
+                                    vc = 0;
+                                    iLa = 0;
+                                    iLb = 0;
+                                    iLc = 0;
+                                    vDC = 0;
+                                    Vref = 0;
+
+                               //inicializa o GPIO 26 que liga e desliga o pwm do boost
+                                GpioDataRegs.GPADAT.bit.GPIO26 = 0;
+
+
+
+                                //Ganhos dos controladores PI
+                                C_iLa.Kp = 1.126*0.5;
+                                C_iLa.Ki = 2844*0.5/36000.0/C_iLa.Kp;
+                                C_iLa.Kc = 1;
+                                C_iLa.OutMax = 0.98;
+                                C_iLa.OutMin = -0.98;
+
+                                C_iLb.Kp = 1.126*0.5;
+                                C_iLb.Ki = 2844*0.5/36000.0/C_iLb.Kp;
+                                C_iLb.Kc = 1;
+                                C_iLb.OutMax = 0.98;
+                                C_iLb.OutMin = -0.98;
+
+                                C_iLc.Kp = 1.126*0.5;
+                                C_iLc.Ki = 2844*0.5/36000.0/C_iLc.Kp;
+                                C_iLc.Kc = 1;
+                                C_iLc.OutMax = 0.98;
+                                C_iLc.OutMin = -0.98;
+
+                  //Inicializa a máquina de estados//
+                   //aponta para o estado inicial. Nunca esquecer de informar um estado
+
+
+                                  //loop infinito
+                         // while(1){
+                             //  for(count = 0; count < 0x00FFFFF; count++){
+
+                               //    }
+                               //Faz piscar o led azul ligado na GPIO 31
+                               // GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
+
+                               //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
+                              GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
+
+                              //verifica a temperatura do conversor boost
+                              ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
+
+                             // if(ERRO_TEMP != 0){
+                              //Liga ou desliga o conversor boost
+                              LigDesL_PWM = GpioDataRegs.GPADAT.bit.GPIO26;
+                             // }
+
+                              //Maquina de estados//
+
+
+                                 // }
 
 
                 ProximoEstado = goto_liga();
@@ -227,6 +301,9 @@ switch(ProximoEstado){
          //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
         GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
 
+
+        ProximoEstado = goto_liga();
+
     }
     break;
     case OFF:{
@@ -247,77 +324,6 @@ switch(ProximoEstado){
     }
 }
 
-                //mantem os leds desligados inicialmente
-              //  GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
-               // GpioDataRegs.GPADAT.bit.GPIO31 = 0;
-
-                //inicializa as variaveis do contador
-                  contadores.geral = 0;
-                  contadores.index = 0;
-                  contadores.pre_carga = 0;
-                  contadores.trip_event = 0;
-
-                //inicializa as variavies de tensão e corrente
-                  va = 0;
-                  vb = 0;
-                  vc = 0;
-                  iLa = 0;
-                  iLb = 0;
-                  iLc = 0;
-                  vDC = 0;
-                  Vref = 0;
-
-             //inicializa o GPIO 26 que liga e desliga o pwm do boost
-              GpioDataRegs.GPADAT.bit.GPIO26 = 0;
-
-
-
-              //Ganhos dos controladores PI
-              C_iLa.Kp = 1.126*0.5;
-              C_iLa.Ki = 2844*0.5/36000.0/C_iLa.Kp;
-              C_iLa.Kc = 1;
-              C_iLa.OutMax = 0.98;
-              C_iLa.OutMin = -0.98;
-
-              C_iLb.Kp = 1.126*0.5;
-              C_iLb.Ki = 2844*0.5/36000.0/C_iLb.Kp;
-              C_iLb.Kc = 1;
-              C_iLb.OutMax = 0.98;
-              C_iLb.OutMin = -0.98;
-
-              C_iLc.Kp = 1.126*0.5;
-              C_iLc.Ki = 2844*0.5/36000.0/C_iLc.Kp;
-              C_iLc.Kc = 1;
-              C_iLc.OutMax = 0.98;
-              C_iLc.OutMin = -0.98;
-
-//Inicializa a máquina de estados//
- //aponta para o estado inicial. Nunca esquecer de informar um estado
-
-
-                //loop infinito
-       // while(1){
-           //  for(count = 0; count < 0x00FFFFF; count++){
-
-             //    }
-             //Faz piscar o led azul ligado na GPIO 31
-             // GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
-
-             //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
-            GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
-
-            //verifica a temperatura do conversor boost
-            ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
-
-           // if(ERRO_TEMP != 0){
-            //Liga ou desliga o conversor boost
-            LigDesL_PWM = GpioDataRegs.GPADAT.bit.GPIO26;
-           // }
-
-            //Maquina de estados//
-
-
-               // }
 
 
                return 0;
