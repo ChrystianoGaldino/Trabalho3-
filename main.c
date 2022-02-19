@@ -17,7 +17,7 @@ float *padc1 =  &va;
 //float *padc2 =  &iLa;
 
 //variavel para o sensor de temperatura
-unsigned char ERRO_TEMP = 0;         // Desliga o conversor por elevação de temperatura
+unsigned char ERRO_TEMP = 1;         // Desliga o conversor por elevação de temperatura
 
 //variavel para ligar/desligar o boost
 unsigned char LigDesL_PWM = 0;         // Liga ou desliga o conversor boost
@@ -55,17 +55,17 @@ __interrupt void isr_epwm_trip(void);  //função do trip zone
 float teste = 0;
 
 //Sobrecorrente
-int sobrecorrente = 0;
+int Isat = 3;
 
 //Maquina de Estados//
-//Variaveis globais
-void (*PonteiroDeFuncao)(); //ponteiro de função da maquina de estados
+
+unsigned char turn_off_command = 0, turn_on_command = 0;
 
 //prototypes:
-void Init(void);       //função que representa o estado inicial da máquina de estados.
-void On(void);   //função que representa o estado ligado.
-void Off(void);   //função que representa o estado desligado.
-void Error(void);   //função que representa o estado de erro.
+//void Init(void);       //função que representa o estado inicial da máquina de estados.
+//void On(void);   //função que representa o estado ligado.
+//void Off(void);   //função que representa o estado desligado.
+//void Error(void);   //função que representa o estado de erro.
 
 //Declarações da Maquina de Estados
 typedef enum
@@ -93,21 +93,18 @@ init_state ini(void)
 
 init_state goto_ON(void)
 {
-    EINT;
-    ERTM;
 
   //código da estado
-
+    EINT;  //Enable Global interrupt INTM
+    ERTM;  //Enable Global realtime interrupt DBGM
 
     return On;
 }
 
 init_state goto_OFF(void)
 {
-    DINT;
-
   //código da estado
-
+ DINT;  //Disable CPU interrupts  (Chave global das interrupções, desliga tudo)
 
 
     return Off;
@@ -115,8 +112,8 @@ init_state goto_OFF(void)
 
 init_state goto_ERROR(void)
 {
-    DINT;
 
+ DINT;  //Disable CPU interrupts  (Chave global das interrupções, desliga tudo)
 
 
 
@@ -125,18 +122,18 @@ init_state goto_ERROR(void)
 
 init_state readevents(void)
 {
-    if(ia > Isat || ib > Isat || ic < -Isat){
+    if(iLa > Isat || iLb > Isat || iLc > Isat){
             return overcurrent;
         }
-    if(temp ==0){    //GPIO-14 ==0   sensor de temperatura
+    if(ERRO_TEMP == 0){    //GPIO-14 ==0   sensor de temperatura
             return overtemperature;
         }
         if(turn_off_command == 1){
-            PieCtrlRegs.PIEIER1.bit.INTx7 = 0;
+         PieCtrlRegs.PIEIER1.bit.INTx7 = 0; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
             return off_state;
         }
         if(turn_on_command == 1){
-            PieCtrlRegs.PIEIER1.bit.INTx7 = 1;
+         PieCtrlRegs.PIEIER1.bit.INTx7 = 1; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
             return on_state;
         }
         return none;
@@ -146,7 +143,7 @@ init_state readevents(void)
 int main(void)
     {
 
-    init_state next_state = on;
+    init_state next_state = On;
     events new_event;
 
     //loop infinito
@@ -155,7 +152,7 @@ int main(void)
 
 switch(next_state){
 
-    case on:{
+    case Init:{
 
 
             //Funções básicas definidas pela Texas Instrument
@@ -194,8 +191,12 @@ switch(next_state){
                 CpuTimer0Regs.TCR.all = 0x4001; //habilita a interrupção dentro do timer
 
 
-                EINT;                 //Enable Global interrupt INTM
-                ERTM;                 //Enable Global realtime interrupt DBGM
+          //      EINT;                 //Enable Global interrupt INTM
+           //     ERTM;                 //Enable Global realtime interrupt DBGM
+
+                //mantem os leds desligados inicialmente
+                  GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
+                  GpioDataRegs.GPADAT.bit.GPIO31 = 0;
 
                 next_state = goto_ON();
            }
@@ -224,7 +225,7 @@ switch(next_state){
 
     case Error:{
         if(on_state == new_event){
-            next_state = end_init_goto_ON();
+            next_state = goto_ON();
         }
     }
     break;
@@ -234,8 +235,8 @@ switch(next_state){
 }
 
                 //mantem os leds desligados inicialmente
-                GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
-                GpioDataRegs.GPADAT.bit.GPIO31 = 0;
+              //  GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
+               // GpioDataRegs.GPADAT.bit.GPIO31 = 0;
 
                 //inicializa as variaveis do contador
                   contadores.geral = 0;
@@ -327,24 +328,24 @@ __interrupt void isr_adc(void){
             }
 
   //Teste sobrecorrente (quando o sobrecorrente vai pra 1)
-   if(sobrecorrente != 0){
+  // if(sobrecorrente != 0){
              //GpioDataRegs.GPADAT.bit.GPIO22 = 0;  //habilita o trip zone
 
          //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
        // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
 
-       EALLOW;
+   //    EALLOW;
 
-       EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
-       EPwm5Regs.TZFRC.bit.OST = 1;
-       EPwm6Regs.TZFRC.bit.OST = 1;
-
-
-          EDIS;
+    //   EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
+    //   EPwm5Regs.TZFRC.bit.OST = 1;
+    //   EPwm6Regs.TZFRC.bit.OST = 1;
 
 
+    //      EDIS;
 
-          }
+
+
+      //    }
 
     while(!AdcbRegs.ADCINTFLG.bit.ADCINT1);     // Wait ADCB finished  quando o ADCINT1 =1 , o pulso de interrupção ja foi gerado
 // Le os 4 valores do ADC A, 2 valores do ADC B e 2 valores do ADC C
