@@ -17,7 +17,7 @@ float *padc1 =  &va;
 //float *padc2 =  &iLa;
 
 //variavel para o sensor de temperatura
-unsigned char ERRO_TEMP = 1;         // Desliga o conversor por elevação de temperatura
+float ERRO_TEMP = 1;         // Desliga o conversor por elevação de temperatura
 
 //variavel para ligar/desligar o boost
 unsigned char LigDesL_PWM = 0;         // Liga ou desliga o conversor boost
@@ -70,89 +70,92 @@ unsigned char turn_off_command = 0, turn_on_command = 0;
 //Declarações da Maquina de Estados
 typedef enum
 {
-    Init,
-    On,
-    Off,
-    Error,
+    INIT,
+    ON,
+    OFF,
+    ERROR,
 }init_state;
 
 typedef enum
 {
-    overcurrent,
-    overtemperature,
-    off_state,
-    on_state,
-    none,
+    sobrecorrente,
+    sobretemperatura,
+    desligado,
+    ligado,
+    nada,
 }events;
 
 ////////////Declaração das funções///////////
-init_state ini(void)
+init_state inicial(void)
 {
-    return Init;
+    return INIT;
 }
 
-init_state goto_ON(void)
+init_state goto_liga(void)
 {
 
   //código da estado
     EINT;  //Enable Global interrupt INTM
     ERTM;  //Enable Global realtime interrupt DBGM
 
-    return On;
+    return ON;
 }
 
-init_state goto_OFF(void)
+init_state goto_desliga(void)
 {
   //código da estado
  DINT;  //Disable CPU interrupts  (Chave global das interrupções, desliga tudo)
 
 
-    return Off;
+    return OFF;
 }
 
-init_state goto_ERROR(void)
+init_state goto_erro(void)
 {
 
  DINT;  //Disable CPU interrupts  (Chave global das interrupções, desliga tudo)
 
 
 
-    return Error;
+    return ERROR;
 }
 
 init_state readevents(void)
 {
     if(iLa > Isat || iLb > Isat || iLc > Isat){
-            return overcurrent;
+            return sobrecorrente;
         }
     if(ERRO_TEMP == 0){    //GPIO-14 ==0   sensor de temperatura
-            return overtemperature;
+            return sobretemperatura;
         }
         if(turn_off_command == 1){
          PieCtrlRegs.PIEIER1.bit.INTx7 = 0; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
-            return off_state;
+            return desligado;
         }
         if(turn_on_command == 1){
          PieCtrlRegs.PIEIER1.bit.INTx7 = 1; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
-            return on_state;
+            return ligado;
         }
-        return none;
+        return nada;
     }
 
 
 int main(void)
     {
 
-    init_state next_state = On;
-    events new_event;
+    init_state ProximoEstado = ON;
+    events NovoEvento;
+
+    //teste para ver se liga
+    turn_on_command = 1;
 
     //loop infinito
     while(1){
-   events new_event = readevents();
+   events NovoEvento = readevents();
 
-switch(next_state){
+switch(ProximoEstado){
 
-    case Init:{
+    case INIT:{
 
 
             //Funções básicas definidas pela Texas Instrument
@@ -198,34 +201,44 @@ switch(next_state){
                   GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
                   GpioDataRegs.GPADAT.bit.GPIO31 = 0;
 
-                next_state = goto_ON();
+
+
+
+                ProximoEstado = goto_liga();
            }
         break;
 
-    case On:{
-        if(overcurrent == new_event){
-            next_state = goto_ERROR();
+    case ON:{
+        if(sobrecorrente == NovoEvento){
+            ProximoEstado = goto_erro();
         }
 
-        if(overtemperature == new_event){
-                  next_state = goto_ERROR();
+        if(sobretemperatura == NovoEvento){
+            ProximoEstado = goto_erro();
         }
 
-        if(off_state == new_event){
-            next_state = goto_OFF();
+        if(desligado == NovoEvento){
+            ProximoEstado = goto_desliga();
+        }
+
+        //Faz piscar o led azul ligado na GPIO 31
+         GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
+
+         //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
+        GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
+
+    }
+    break;
+    case OFF:{
+        if(ligado == NovoEvento){
+            ProximoEstado = goto_liga();
         }
     }
     break;
-    case Off:{
-        if(on_state == new_event){
-            next_state = goto_ON();
-        }
-    }
-    break;
 
-    case Error:{
-        if(on_state == new_event){
-            next_state = goto_ON();
+    case ERROR:{
+        if(ligado == NovoEvento){
+            ProximoEstado = goto_liga();
         }
     }
     break;
