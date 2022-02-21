@@ -240,14 +240,14 @@ void Setup_ePWM(void){
     EDIS;
 
     //testa se o trip via software funciona ao se iniciar os pwms
-    EALLOW;
+   // EALLOW;
 
-    EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
-    EPwm5Regs.TZFRC.bit.OST = 1;
-    EPwm6Regs.TZFRC.bit.OST = 1;
+   // EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
+   // EPwm5Regs.TZFRC.bit.OST = 1;
+   // EPwm6Regs.TZFRC.bit.OST = 1;
 
 
-     EDIS;
+   //  EDIS;
 
 }
 

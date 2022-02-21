@@ -254,15 +254,15 @@ switch(EstadoAtual){
 
 
                                   //loop infinito
-                         // while(1){
-                             //  for(count = 0; count < 0x00FFFFF; count++){
+                          while(1){
+                              for(count = 0; count < 0x00FFFFF; count++){
 
-                               //    }
+                                  }
                                //Faz piscar o led azul ligado na GPIO 31
                                // GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
 
                                //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
-                              GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
+                             GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
 
                               //verifica a temperatura do conversor boost
                               ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
@@ -270,7 +270,7 @@ switch(EstadoAtual){
                              // if(ERRO_TEMP != 0){
                               //Liga ou desliga o conversor boost
                               LigDesL_PWM = GpioDataRegs.GPADAT.bit.GPIO26;
-                             // }
+                              }
 
                               //Maquina de estados//
 
@@ -296,10 +296,10 @@ switch(EstadoAtual){
         }
 
         //Faz piscar o led azul ligado na GPIO 31
-         GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
+     //    GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
 
          //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
-        GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
+   //    GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
 
 
         EstadoAtual = goto_liga();
