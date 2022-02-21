@@ -151,7 +151,7 @@ init_state readevents(void)
 int main(void)
     {
 
-    init_state ProximoEstado = ON;
+    static init_state EstadoAtual = INIT;
     events NovoEvento;
 
     //teste para ver se liga
@@ -161,7 +161,7 @@ int main(void)
     while(1){
    events NovoEvento = readevents();
 
-switch(ProximoEstado){
+switch(EstadoAtual){
 
     case INIT:{
 
@@ -278,21 +278,21 @@ switch(ProximoEstado){
                                  // }
 
 
-                ProximoEstado = goto_liga();
+                EstadoAtual = goto_liga();
            }
         break;
 
     case ON:{
         if(sobrecorrente == NovoEvento){
-            ProximoEstado = goto_erro();
+            EstadoAtual = goto_erro();
         }
 
         if(sobretemperatura == NovoEvento){
-            ProximoEstado = goto_erro();
+            EstadoAtual = goto_erro();
         }
 
         if(desligado == NovoEvento){
-            ProximoEstado = goto_desliga();
+            EstadoAtual = goto_desliga();
         }
 
         //Faz piscar o led azul ligado na GPIO 31
@@ -302,20 +302,20 @@ switch(ProximoEstado){
         GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
 
 
-        ProximoEstado = goto_liga();
+        EstadoAtual = goto_liga();
 
     }
     break;
     case OFF:{
         if(ligado == NovoEvento){
-            ProximoEstado = goto_liga();
+            EstadoAtual = goto_liga();
         }
     }
     break;
 
     case ERROR:{
         if(ligado == NovoEvento){
-            ProximoEstado = goto_liga();
+            EstadoAtual = goto_liga();
         }
     }
     break;
@@ -353,14 +353,14 @@ __interrupt void isr_adc(void){
          //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
        // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
 
-   //    EALLOW;
+       //EALLOW;
 
-    //   EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
-    //   EPwm5Regs.TZFRC.bit.OST = 1;
-    //   EPwm6Regs.TZFRC.bit.OST = 1;
+      // EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
+      // EPwm5Regs.TZFRC.bit.OST = 1;
+      // EPwm6Regs.TZFRC.bit.OST = 1;
 
 
-    //      EDIS;
+      //  EDIS;
 
 
 
