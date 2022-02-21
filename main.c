@@ -55,7 +55,7 @@ __interrupt void isr_epwm_trip(void);  //função do trip zone
 float teste = 0;
 
 //Sobrecorrente
-int Isat = 3;
+int Isat = 50;
 
 //Maquina de Estados//
 
@@ -98,6 +98,8 @@ init_state goto_liga(void)
   //código da estado
     EINT;  //Enable Global interrupt INTM
     ERTM;  //Enable Global realtime interrupt DBGM
+
+    turn_on_command = 1;
 
 
     return ON;
@@ -144,6 +146,7 @@ init_state readevents(void)
          return ligado;
 
         }
+
         return nada;
     }
 
@@ -152,10 +155,11 @@ int main(void)
     {
 
     static init_state EstadoAtual = INIT;
-    events NovoEvento;
+     events NovoEvento;
 
     //teste para ver se liga
-    turn_on_command = 1;
+   // turn_on_command = 1;
+   // ERRO_TEMP = 0;         // Desliga o conversor por elevação de temperatura
 
     //loop infinito
     while(1){
@@ -202,12 +206,13 @@ switch(EstadoAtual){
                 CpuTimer0Regs.TCR.all = 0x4001; //habilita a interrupção dentro do timer
 
 
-                EINT;                 //Enable Global interrupt INTM
-                ERTM;                 //Enable Global realtime interrupt DBGM
+ //               EINT;                 //Enable Global interrupt INTM
+     //           ERTM;                 //Enable Global realtime interrupt DBGM
 
                 //mantem os leds desligados inicialmente
                   GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
-                  GpioDataRegs.GPADAT.bit.GPIO31 = 0;
+                 // GpioDataRegs.GPADAT.bit.GPIO31 = 0;
+                  GpioDataRegs.GPADAT.bit.GPIO31 = 1;
 
                                   //inicializa as variaveis do contador
                                     contadores.geral = 0;
@@ -254,23 +259,23 @@ switch(EstadoAtual){
 
 
                                   //loop infinito
-                          while(1){
-                              for(count = 0; count < 0x00FFFFF; count++){
+        //                  while(1){
+        //                      for(count = 0; count < 0x00FFFFF; count++){
 
-                                  }
+           //                       }
                                //Faz piscar o led azul ligado na GPIO 31
-                               // GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
+                                GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
 
                                //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
                              GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
 
                               //verifica a temperatura do conversor boost
-                              ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
+                          //    ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
 
                              // if(ERRO_TEMP != 0){
                               //Liga ou desliga o conversor boost
                               LigDesL_PWM = GpioDataRegs.GPADAT.bit.GPIO26;
-                              }
+         //                     }
 
                               //Maquina de estados//
 
@@ -295,14 +300,10 @@ switch(EstadoAtual){
             EstadoAtual = goto_desliga();
         }
 
-        //Faz piscar o led azul ligado na GPIO 31
-     //    GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1; // ou exclusivo (XOR), alterna o valor entre 0 e 1
+        if(ligado == NovoEvento){
+                  EstadoAtual = goto_liga();
+              }
 
-         //Faz piscar o led vermelho ligado na GPIO 34  - observar que ele usa o GPB toggle enquanto que o led azul usa o GPA toggle   (pag. 13 pdf overview)
-   //    GpioDataRegs.GPBTOGGLE.bit.GPIO34 = 1; // Or exclusivo (XOR), alterna o valor entre 0 e 1
-
-
-        EstadoAtual = goto_liga();
 
     }
     break;
@@ -310,13 +311,36 @@ switch(EstadoAtual){
         if(ligado == NovoEvento){
             EstadoAtual = goto_liga();
         }
+
+        if(sobrecorrente == NovoEvento){
+            EstadoAtual = goto_desliga();
+        }
+
+        if(sobretemperatura == NovoEvento){
+            EstadoAtual = goto_desliga();
+        }
+
+
+
     }
     break;
 
-    case ERROR:{
+    case ERROR:{                      //em erro manda para o estado desligado de qualquer forma
         if(ligado == NovoEvento){
-            EstadoAtual = goto_liga();
+            EstadoAtual = goto_desliga();
         }
+
+        if(desligado == NovoEvento){
+                  EstadoAtual = goto_desliga();
+              }
+        if(sobrecorrente == NovoEvento){
+            EstadoAtual = goto_desliga();
+        }
+
+        if(sobretemperatura == NovoEvento){
+            EstadoAtual = goto_desliga();
+        }
+
     }
     break;
     default:
@@ -326,7 +350,7 @@ switch(EstadoAtual){
 
 
 
-               return 0;
+    return 0;
 
 }
 
@@ -340,6 +364,9 @@ __interrupt void isr_adc(void){
 
  // Over temperature  - Proteção contra elevação de temperatura (lê o GPIO 14 de temp. e desliga o GPIO 26 pwm boost)
  GpioDataRegs.GPADAT.bit.GPIO26 = (!GpioDataRegs.GPADAT.bit.GPIO14) ? 1 : GpioDataRegs.GPADAT.bit.GPIO26;
+
+ //verifica a temperatura do conversor boost
+ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
 
  //Liga novamente o pwm do conversor boost caso a temperatura tenha reduzido (quando o GPIO 14 volta pra 1)
   if(GpioDataRegs.GPADAT.bit.GPIO14 != 0){
