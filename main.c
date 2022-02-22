@@ -17,7 +17,7 @@ float *padc1 =  &va;
 //float *padc2 =  &iLa;
 
 //variavel para o sensor de temperatura
-float ERRO_TEMP = 1;         // Desliga o conversor por elevação de temperatura
+int ERRO_TEMP = 1;         // Desliga o conversor por elevação de temperatura
 
 //variavel para ligar/desligar o boost
 unsigned char LigDesL_PWM = 0;         // Liga ou desliga o conversor boost
@@ -52,10 +52,17 @@ __interrupt void isr_adc(void);     //funçao de interrupçao do ADC
 __interrupt void isr_epwm_trip(void);  //função do trip zone
 
 //teste entra em função
-float teste = 0;
+int teste = 0;
+
+//Trip zone
+int trip = 0;
+
+//sobretemperatura
+int OT = 0;
 
 //Sobrecorrente
 int Isat = 50;
+int overcurrent = 0;
 
 //Maquina de Estados//
 
@@ -79,10 +86,10 @@ typedef enum
 
 typedef enum
 {
-    sobrecorrente,
+    ligado,
     sobretemperatura,
     desligado,
-    ligado,
+    sobrecorrente,
     nada,
 }events;
 
@@ -126,10 +133,10 @@ init_state goto_erro(void)
 
 init_state readevents(void)
 {
-    if(iLa > Isat || iLb > Isat || iLc > Isat){
+    if(overcurrent == 1){
             return sobrecorrente;
         }
-    if(ERRO_TEMP == 0){    //GPIO-14 ==0   sensor de temperatura
+    if(OT == 1){    // Sensor de temperatura
             return sobretemperatura;
         }
         if(turn_off_command == 1){
@@ -155,7 +162,7 @@ int main(void)
     {
 
     static init_state EstadoAtual = INIT;
-     events NovoEvento;
+     events NovoEvento = ligado;
 
     //teste para ver se liga
    // turn_on_command = 1;
@@ -212,7 +219,7 @@ switch(EstadoAtual){
                 //mantem os leds desligados inicialmente
                   GpioDataRegs.GPBDAT.bit.GPIO34 = 1;
                  // GpioDataRegs.GPADAT.bit.GPIO31 = 0;
-                  GpioDataRegs.GPADAT.bit.GPIO31 = 1;
+            //      GpioDataRegs.GPADAT.bit.GPIO31 = 1;
 
                                   //inicializa as variaveis do contador
                                     contadores.geral = 0;
@@ -276,14 +283,11 @@ switch(EstadoAtual){
                               //Liga ou desliga o conversor boost
                               LigDesL_PWM = GpioDataRegs.GPADAT.bit.GPIO26;
          //                     }
-
-                              //Maquina de estados//
-
-
                                  // }
 
 
                 EstadoAtual = goto_liga();
+
            }
         break;
 
@@ -314,10 +318,18 @@ switch(EstadoAtual){
 
         if(sobrecorrente == NovoEvento){
             EstadoAtual = goto_desliga();
+            NovoEvento = ligado;
         }
 
         if(sobretemperatura == NovoEvento){
             EstadoAtual = goto_desliga();
+            if(OT == 0){
+            NovoEvento = ligado;
+            }
+
+            if(OT == 1){
+                NovoEvento = desligado;
+            }
         }
 
 
@@ -363,35 +375,22 @@ PieCtrlRegs.PIEACK.all = PIEACK_GROUP1; // serve para resetar o flag da interrup
 __interrupt void isr_adc(void){
 
  // Over temperature  - Proteção contra elevação de temperatura (lê o GPIO 14 de temp. e desliga o GPIO 26 pwm boost)
- GpioDataRegs.GPADAT.bit.GPIO26 = (!GpioDataRegs.GPADAT.bit.GPIO14) ? 1 : GpioDataRegs.GPADAT.bit.GPIO26;
+ //GpioDataRegs.GPADAT.bit.GPIO26 = (!GpioDataRegs.GPADAT.bit.GPIO14) ? 1 : GpioDataRegs.GPADAT.bit.GPIO26;
 
  //verifica a temperatura do conversor boost
 ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
+if (ERRO_TEMP == 0){
+
+    OT = 1;  //dispara a proteção de sobretemperatura
+}
 
  //Liga novamente o pwm do conversor boost caso a temperatura tenha reduzido (quando o GPIO 14 volta pra 1)
-  if(GpioDataRegs.GPADAT.bit.GPIO14 != 0){
-            GpioDataRegs.GPADAT.bit.GPIO26 = 0;
+  //if(GpioDataRegs.GPADAT.bit.GPIO14 != 0){
+  if(ERRO_TEMP != 0){
+           // GpioDataRegs.GPADAT.bit.GPIO26 = 0;
+              OT = 0;  //desliga a proteção
             }
 
-  //Teste sobrecorrente (quando o sobrecorrente vai pra 1)
-  // if(sobrecorrente != 0){
-             //GpioDataRegs.GPADAT.bit.GPIO22 = 0;  //habilita o trip zone
-
-         //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
-       // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
-
-       //EALLOW;
-
-      // EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
-      // EPwm5Regs.TZFRC.bit.OST = 1;
-      // EPwm6Regs.TZFRC.bit.OST = 1;
-
-
-      //  EDIS;
-
-
-
-      //    }
 
     while(!AdcbRegs.ADCINTFLG.bit.ADCINT1);     // Wait ADCB finished  quando o ADCINT1 =1 , o pulso de interrupção ja foi gerado
 // Le os 4 valores do ADC A, 2 valores do ADC B e 2 valores do ADC C
@@ -407,6 +406,28 @@ ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
 
 // Over voltage - Proteção de sobretenção no barramento CC, caso a tensão fique maior que 30 V desliga o PWM
 GpioDataRegs.GPADAT.bit.GPIO26 = (vDC > 30.0) ? 1 : GpioDataRegs.GPADAT.bit.GPIO26;
+
+//Teste sobrecorrente (quando o sobrecorrente vai pra 1)
+if (iLa > Isat || iLb > Isat || iLc > Isat){
+
+    //overcurrent = 1;  //ativa a proteção de sobrecorrente
+    //trip =1;
+}
+
+ //if(overcurrent != 0){
+      //GpioDataRegs.GPADAT.bit.GPIO22 = 0;  //habilita o trip zone
+
+       //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
+     // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
+
+     //EALLOW;
+    // EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
+    // EPwm5Regs.TZFRC.bit.OST = 1;
+    // EPwm6Regs.TZFRC.bit.OST = 1;
+    //  EDIS;
+
+   //    }
+
 
 //para gerar o angulo theta limitado em 2 pi
 theta = theta + delta_theta;
@@ -489,6 +510,8 @@ __interrupt void isr_epwm_trip(void){
     //dispara o contador quando ocorrer o trip
        //contadores.trip_event = contadores.trip_event + 1;
       contadores.trip_event++;    //dispara o contador quando ocorrer o trip
+
+      trip = 1; //se ocorrer um trip zone o estado vai para error
 
      // To Re-enable the OST Interrupt, do the following:
 
