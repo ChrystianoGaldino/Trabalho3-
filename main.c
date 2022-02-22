@@ -113,6 +113,8 @@ init_state goto_liga(void)
 
     turn_on_command = 1;
 
+    GpioDataRegs.GPADAT.bit.GPIO26 = 0;  //liga o pwm do boost (0 - ok, 1 - erro)
+
 
     return ON;
 }
@@ -333,7 +335,8 @@ switch(EstadoAtual){
         }
 
         if(sobrecorrente == NovoEvento){
-            EstadoAtual = goto_desliga();
+            //EstadoAtual = goto_desliga();
+            EstadoAtual = goto_erro();
             if(OC == 0){
 
             NovoEvento = ligado;
@@ -346,7 +349,8 @@ switch(EstadoAtual){
         }
 
         if(sobretemperatura == NovoEvento){
-            EstadoAtual = goto_desliga();
+            //EstadoAtual = goto_desliga();
+            EstadoAtual = goto_erro();
             if(OT == 0){
             NovoEvento = ligado;
             }
@@ -357,7 +361,8 @@ switch(EstadoAtual){
         }
 
         if(sobretensao == NovoEvento){
-            EstadoAtual = goto_desliga();
+           // EstadoAtual = goto_desliga();
+            EstadoAtual = goto_erro();
             if(OV == 0){
             NovoEvento = ligado;
             }
@@ -389,7 +394,7 @@ switch(EstadoAtual){
         }
 
         if(sobretensao == NovoEvento){
-            EstadoAtual == goto_desliga();
+            EstadoAtual = goto_desliga();
         }
 
     }
