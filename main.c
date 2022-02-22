@@ -60,9 +60,13 @@ int trip = 0;
 //sobretemperatura
 int OT = 0;
 
+//sobretensão
+int OV = 0;
+int Vmax = 30;
+
 //Sobrecorrente
 int Isat = 50;
-int overcurrent = 0;
+int OC = 0;
 
 //Maquina de Estados//
 
@@ -90,6 +94,7 @@ typedef enum
     sobretemperatura,
     desligado,
     sobrecorrente,
+    sobretensao,
     nada,
 }events;
 
@@ -117,6 +122,8 @@ init_state goto_desliga(void)
   //código da estado
  DINT;  //Disable CPU interrupts  (Chave global das interrupções, desliga tudo)
 
+ GpioDataRegs.GPADAT.bit.GPIO26 = 1;  //desliga o pwm do boost (0 - ok, 1 - erro)
+
 
     return OFF;
 }
@@ -126,32 +133,41 @@ init_state goto_erro(void)
 
  DINT;  //Disable CPU interrupts  (Chave global das interrupções, desliga tudo)
 
+ GpioDataRegs.GPADAT.bit.GPIO26 = 1;  //desliga o pwm do boost (0 - ok, 1 - erro)
 
+ //led
+ GpioDataRegs.GPATOGGLE.bit.GPIO31 = 1;
 
     return ERROR;
 }
 
 init_state readevents(void)
 {
-    if(overcurrent == 1){
-            return sobrecorrente;
+    if(OC == 1){
+       return sobrecorrente;
         }
+
     if(OT == 1){    // Sensor de temperatura
-            return sobretemperatura;
+       return sobretemperatura;
         }
+
+    if(OV == 1){   //sobretensão no barramento CC
+        return sobretensao;
+    }
+
         if(turn_off_command == 1){
          PieCtrlRegs.PIEIER1.bit.INTx7 = 0; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
          PieCtrlRegs.PIEIER1.bit.INTx1 = 0;  // ADC A1 (interrupção do ADC A) (linha 1 da coluna 1)
 
          return desligado;
         }
+
         if(turn_on_command == 1){
             PieCtrlRegs.PIEIER1.bit.INTx7 = 1; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
             PieCtrlRegs.PIEIER1.bit.INTx1 = 1;  // ADC A1 (interrupção do ADC A) (linha 1 da coluna 1)
             PieCtrlRegs.PIEIER2.bit.INTx4 = 1;  //Enable PieVector to TZ4 TRIP1 interrupt (linha 2, coluna 4)
 
          return ligado;
-
         }
 
         return nada;
@@ -164,11 +180,7 @@ int main(void)
     static init_state EstadoAtual = INIT;
      events NovoEvento = ligado;
 
-    //teste para ver se liga
-   // turn_on_command = 1;
-   // ERRO_TEMP = 0;         // Desliga o conversor por elevação de temperatura
-
-    //loop infinito
+   ////////loop infinito ///////////
     while(1){
    events NovoEvento = readevents();
 
@@ -300,12 +312,16 @@ switch(EstadoAtual){
             EstadoAtual = goto_erro();
         }
 
+        if(sobretensao == NovoEvento){
+            EstadoAtual = goto_erro();
+        }
+
         if(desligado == NovoEvento){
             EstadoAtual = goto_desliga();
         }
 
         if(ligado == NovoEvento){
-                  EstadoAtual = goto_liga();
+            EstadoAtual = goto_liga();
               }
 
 
@@ -318,7 +334,15 @@ switch(EstadoAtual){
 
         if(sobrecorrente == NovoEvento){
             EstadoAtual = goto_desliga();
+            if(OC == 0){
+
             NovoEvento = ligado;
+            }
+
+            if(OC == 1){
+
+                NovoEvento = desligado;
+            }
         }
 
         if(sobretemperatura == NovoEvento){
@@ -328,7 +352,18 @@ switch(EstadoAtual){
             }
 
             if(OT == 1){
-                NovoEvento = desligado;
+            NovoEvento = desligado;
+            }
+        }
+
+        if(sobretensao == NovoEvento){
+            EstadoAtual = goto_desliga();
+            if(OV == 0){
+            NovoEvento = ligado;
+            }
+
+            if(OV == 1){
+            NovoEvento = desligado;
             }
         }
 
@@ -343,7 +378,7 @@ switch(EstadoAtual){
         }
 
         if(desligado == NovoEvento){
-                  EstadoAtual = goto_desliga();
+           EstadoAtual = goto_desliga();
               }
         if(sobrecorrente == NovoEvento){
             EstadoAtual = goto_desliga();
@@ -351,6 +386,10 @@ switch(EstadoAtual){
 
         if(sobretemperatura == NovoEvento){
             EstadoAtual = goto_desliga();
+        }
+
+        if(sobretensao == NovoEvento){
+            EstadoAtual == goto_desliga();
         }
 
     }
@@ -379,6 +418,7 @@ __interrupt void isr_adc(void){
 
  //verifica a temperatura do conversor boost
 ERRO_TEMP = GpioDataRegs.GPADAT.bit.GPIO14;
+
 if (ERRO_TEMP == 0){
 
     OT = 1;  //dispara a proteção de sobretemperatura
@@ -407,12 +447,21 @@ if (ERRO_TEMP == 0){
 // Over voltage - Proteção de sobretenção no barramento CC, caso a tensão fique maior que 30 V desliga o PWM
 GpioDataRegs.GPADAT.bit.GPIO26 = (vDC > 30.0) ? 1 : GpioDataRegs.GPADAT.bit.GPIO26;
 
+if (vDC > Vmax){
+
+    OV = 1; //ativa a proteção de sobretensão
+}
+else
+    OV = 0; //desliga a proteção de sobretensão
+
 //Teste sobrecorrente (quando o sobrecorrente vai pra 1)
 if (iLa > Isat || iLb > Isat || iLc > Isat){
 
-    //overcurrent = 1;  //ativa a proteção de sobrecorrente
+    OC = 1;  //ativa a proteção de sobrecorrente
     //trip =1;
 }
+else
+    OC = 0; //desliga a proteção de corrente
 
  //if(overcurrent != 0){
       //GpioDataRegs.GPADAT.bit.GPIO22 = 0;  //habilita o trip zone
