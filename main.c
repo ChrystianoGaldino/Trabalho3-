@@ -157,6 +157,10 @@ init_state readevents(void)
         return sobretensao;
     }
 
+   // if(trip == 1){     //se o trip zone for acionado desliga
+    //    return desligado;
+    //}
+
         if(turn_off_command == 1){
          PieCtrlRegs.PIEIER1.bit.INTx7 = 0; //Timer 0 - habilita a coluna 7 da linha 1 que corresponde a interrupçao do timer 0
          PieCtrlRegs.PIEIER1.bit.INTx1 = 0;  // ADC A1 (interrupção do ADC A) (linha 1 da coluna 1)
@@ -302,6 +306,24 @@ switch(EstadoAtual){
 
                 EstadoAtual = goto_liga();
 
+                if(OC == 1){
+
+                            EstadoAtual = goto_erro();
+                            NovoEvento = desligado;
+                            }
+
+                if(OT == 1){
+
+                           EstadoAtual = goto_erro();
+                           NovoEvento = desligado;
+                                       }
+
+                if(OV == 1){
+
+                            EstadoAtual = goto_erro();
+                            NovoEvento = desligado;
+                                       }
+
            }
         break;
 
@@ -371,7 +393,6 @@ switch(EstadoAtual){
             NovoEvento = desligado;
             }
         }
-
 
 
     }
@@ -464,6 +485,19 @@ if (iLa > Isat || iLb > Isat || iLc > Isat){
 
     OC = 1;  //ativa a proteção de sobrecorrente
     //trip =1;
+
+    //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
+  // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
+
+
+ // EALLOW;
+// EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
+//  EPwm5Regs.TZFRC.bit.OST = 1;
+ // EPwm6Regs.TZFRC.bit.OST = 1;
+ // EDIS;
+
+
+
 }
 else
     OC = 0; //desliga a proteção de corrente
@@ -473,6 +507,7 @@ else
 
        //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
      // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
+
 
      //EALLOW;
     // EPwm4Regs.TZFRC.bit.OST = 1;   //pag.1907 - Force a One-Shot Trip Event via Software
@@ -566,6 +601,18 @@ __interrupt void isr_epwm_trip(void){
       contadores.trip_event++;    //dispara o contador quando ocorrer o trip
 
       trip = 1; //se ocorrer um trip zone o estado vai para error
+
+
+
+      //habilitar o trip zone via software no gpio 41  não precisa usar um gpio externo ligado em jumper no gpio41
+    // sets the TZFLG[OST] bit     (deve ter que limpar o flag)
+   // EALLOW;
+  //  EPwm4Regs.TZFRC.bit.OST = 0;   //pag.1907 - Force a One-Shot Trip Event via Software
+  //  EPwm5Regs.TZFRC.bit.OST = 0;
+  //  EPwm6Regs.TZFRC.bit.OST = 0;
+
+ //   EDIS;
+
 
      // To Re-enable the OST Interrupt, do the following:
 
